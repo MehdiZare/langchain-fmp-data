@@ -2,7 +2,6 @@ from importlib import metadata
 
 from langchain_fmp_data.toolkits import FmpDataToolkit
 from langchain_fmp_data.tools import FMPDataTool
-from langchain_fmp_data.vectorstores import FmpDataVectorStore
 
 try:
     __version__ = metadata.version(__package__)
