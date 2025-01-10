@@ -1,13 +1,13 @@
 from typing import Type
 
-from langchain_fmp_data.tools import FmpDataTool
+from langchain_fmp_data.tools import FMPDataTool
 from langchain_tests.integration_tests import ToolsIntegrationTests
 
 
 class TestParrotMultiplyToolIntegration(ToolsIntegrationTests):
     @property
-    def tool_constructor(self) -> Type[FmpDataTool]:
-        return FmpDataTool
+    def tool_constructor(self) -> Type[FMPDataTool]:
+        return FMPDataTool
 
     @property
     def tool_constructor_params(self) -> dict:
