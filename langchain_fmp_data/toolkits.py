@@ -1,72 +1,147 @@
-"""FmpData toolkits."""
+"""FMPData toolkit for accessing financial market data."""
 
-from typing import List
+import os
+from typing import Any, List
 
 from langchain_core.tools import BaseTool, BaseToolkit
+from pydantic import PrivateAttr
 
 
-class FmpDataToolkit(BaseToolkit):
-    # TODO: Replace all TODOs in docstring. See example docstring:
-    # https://github.com/langchain-ai/langchain/blob/c123cb2b304f52ab65db4714eeec46af69a861ec/libs/community/langchain_community/agent_toolkits/sql/toolkit.py#L19
-    """FmpData toolkit.
+class FMPDataToolkit(BaseToolkit):
+    """FMPData toolkit for accessing financial market data.
 
-    # TODO: Replace with relevant packages, env vars, etc.
-    Setup:
-        Install ``langchain-fmp-data`` and set environment variable ``FMPDATA_API_KEY``.
+    The FMPDataToolkit provides tools to interact
+    with Financial Modeling Prep (FMP) data,
+    allowing retrieval and analysis of
+    financial market information using natural language queries.
 
-        .. code-block:: bash
+    Examples:
+        Basic usage with environment variables:
+        ```python
+        from langchain_fmp_data import FMPDataToolkit
 
-            pip install -U langchain-fmp-data
-            export FMPDATA_API_KEY="your-api-key"
+        # API keys set via environment variables
+        toolkit = FMPDataToolkit(
+            query="Show me Apple's revenue growth and profit margins",
+            num_results=3
+        )
+        tools = toolkit.get_tools()
+        ```
 
-    # TODO: Populate with relevant params.
-    Key init args:
-        arg 1: type
-            description
-        arg 2: type
-            description
+        Usage with explicit API keys:
+        ```python
+        toolkit = FMPDataToolkit(
+            query="Compare Tesla and Ford's debt ratios",
+            num_results=5,
+            fmp_api_key="your-fmp-key", # pragma: allowlist secret
+            openai_api_key="your-openai-key" # pragma: allowlist secret
+        )
+        ```
 
-    # TODO: Replace with relevant init params.
-    Instantiate:
-        .. code-block:: python
+        Integration with LangChain agent:
+        ```python
+        from langchain_openai import ChatOpenAI
+        from langchain.agents import create_openai_functions_agent
+        from langchain.agents import AgentExecutor
 
-            from langchain-fmp-data import FmpDataToolkit
+        # Initialize the LLM
+        llm = ChatOpenAI(temperature=0)
 
-            toolkit = FmpDataToolkit(
-                # ...
+        # Create toolkit and get tools
+        toolkit = FMPDataToolkit(
+            query="Analyze Microsoft's financial health",
+            num_results=3
+        )
+        tools = toolkit.get_tools()
+
+        # Create and run agent
+        agent = create_openai_functions_agent(llm, tools)
+        agent_executor = AgentExecutor(agent=agent, tools=tools)
+
+        response = agent_executor.invoke({
+            "input": "What are Microsoft's key financial metrics?"
+        })
+        print(response["output"])
+        ```
+
+        Example with async usage:
+        ```python
+        async def analyze_financials():
+            toolkit = FMPDataToolkit(
+                query="Show me Netflix's cash flow analysis",
+                num_results=3
+            )
+            agent_executor = await create_agent(toolkit.get_tools())
+            result = await agent_executor.ainvoke({
+                "input": "What is Netflix's free cash flow trend?"
+            })
+            return result["output"]
+        ```
+
+    Requirements:
+        - FMP Data API key (get from https://financialmodelingprep.com/developer)
+        - OpenAI API key
+        - Python packages: langchain-fmp-data, langchain, fmp-data
+
+    Environment Variables:
+        - FMPDATA_API_KEY: Your FMP Data API key
+        - OPENAI_API_KEY: Your OpenAI API key
+
+    Notes:
+        - The toolkit uses vector similarity search to find relevant financial data
+        - Number of results can be adjusted via num_results parameter
+        - API keys can be provided either
+            as environment variables or constructor arguments
+        - The query parameter accepts natural language input to find relevant tools
+    """
+
+    _vector_store: Any = PrivateAttr()
+    _tools: List[BaseTool] = PrivateAttr()
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def __init__(self, **data):
+        try:
+            from fmp_data.lc import create_vector_store
+        except ImportError:
+            raise ImportError(
+                "Could not import fmp_data python package. "
+                "Please install it with `pip install 'fmp_data[langchain]'`."
             )
 
-    Tools:
-        .. code-block:: python
+        super().__init__(**data)
 
-            toolkit.get_tools()
+        # Get API keys with environment variable fallback
+        self._validate_and_set_api_keys()
 
-        .. code-block:: none
+        # Initialize vector store and tools
+        self._vector_store = create_vector_store(
+            fmp_api_key=self.fmp_api_key, openai_api_key=self.openai_api_key
+        )
+        self._tools = self._vector_store.get_tools(query=self.query, k=self.num_results)
 
-            # TODO: Example output.
+    def _validate_and_set_api_keys(self) -> None:
+        """Validate and set API keys from arguments or environment variables."""
+        self.fmp_api_key = self.fmp_api_key or os.environ.get("FMPDATA_API_KEY")
+        self.openai_api_key = self.openai_api_key or os.environ.get("OPENAI_API_KEY")
 
-    Use within an agent:
-        .. code-block:: python
+        missing_keys = []
+        if not self.fmp_api_key:
+            missing_keys.append("FMPDATA_API_KEY")
+        if not self.openai_api_key:
+            missing_keys.append("OPENAI_API_KEY")
 
-            from langgraph.prebuilt import create_react_agent
-
-            agent_executor = create_react_agent(llm, tools)
-
-            example_query = "..."
-
-            events = agent_executor.stream(
-                {"messages": [("user", example_query)]},
-                stream_mode="values",
+        if missing_keys:
+            raise ValueError(
+                f"Missing required API keys: {', '.join(missing_keys)}. "
+                "Please either set them as "
+                "environment variables or pass them as arguments."
             )
-            for event in events:
-                event["messages"][-1].pretty_print()
 
-        .. code-block:: none
-
-             # TODO: Example output.
-
-    """  # noqa: E501
-
-    # TODO: This method must be implemented to list tools.
     def get_tools(self) -> List[BaseTool]:
-        raise NotImplementedError()
+        """Get the list of tools provided by this toolkit.
+
+        Returns:
+            List[BaseTool]: A list of tools for interacting with financial data.
+        """
+        return self._tools
