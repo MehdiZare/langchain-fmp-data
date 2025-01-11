@@ -111,18 +111,49 @@ def should_continue(state: MessagesState) -> Literal["tools", "__end__"]:
         "tools" if more tool calls are needed, "__end__" otherwise
     """
     try:
+        if not isinstance(state, dict) or "messages" not in state:
+            logger.error("Invalid state format")
+            return END
+
         messages = state["messages"]
+        if not messages:
+            logger.error("No messages in state")
+            return END
+
         last_message = messages[-1]
+        if not hasattr(last_message, "tool_calls"):
+            logger.warning("Last message has no tool_calls attribute")
+            return END
+
         return "tools" if last_message.tool_calls else END
+
     except Exception as e:
         logger.error(f"Error in continuation check: {str(e)}", exc_info=True)
         return END
+
+
+def validate_workflow_params(
+    vector_store: EndpointVectorStore, model: ChatOpenAI, max_toolset_size: int
+) -> None:
+    """Validate workflow parameters."""
+    if not isinstance(vector_store, EndpointVectorStore):
+        raise TypeError("vector_store must be an EndpointVectorStore instance")
+
+    if not isinstance(model, ChatOpenAI):
+        raise TypeError("model must be a ChatOpenAI instance")
+
+    if not isinstance(max_toolset_size, int):
+        raise TypeError("max_toolset_size must be an integer")
+
+    if max_toolset_size < 1:
+        raise ValueError("max_toolset_size must be greater than 0")
 
 
 def create_fmp_data_workflow(
     vector_store: EndpointVectorStore,
     model: ChatOpenAI,
     max_toolset_size: int = 10,
+    max_retries: int = 3,
 ) -> StateGraph:
     """
     Create a workflow for processing FMP data queries.
@@ -131,6 +162,7 @@ def create_fmp_data_workflow(
         vector_store: Vector store for tool retrieval
         model: ChatOpenAI model instance
         max_toolset_size: Maximum number of tools to use
+        max_retries: Maximum number of retries for model calls (default: 3)
 
     Returns:
         Configured StateGraph instance
@@ -144,29 +176,40 @@ def create_fmp_data_workflow(
 
     def call_model(state: MessagesState) -> Dict[str, List[BaseMessage]]:
         """Process messages with the model."""
-        try:
-            messages = state["messages"]
-            query = messages[-1].content
+        retry_count = 0
 
-            match_tools = vector_store.get_tools(
-                query, k=max_toolset_size, provider="openai"
-            )
+        while retry_count < max_retries:
+            try:
+                messages = state["messages"]
+                query = messages[-1].content
 
-            if not match_tools:
-                logger.warning("No matching tools found for query")
-                return {"messages": [model.invoke(messages)]}
+                match_tools = vector_store.get_tools(
+                    query, k=max_toolset_size, provider="openai"
+                )
 
-            model_with_tools = model.bind_tools(tools=match_tools)
-            response = model_with_tools.invoke(messages)
+                if not match_tools:
+                    logger.warning("No matching tools found for query")
+                    return {"messages": [model.invoke(messages)]}
 
-            return {"messages": [response]}
+                model_with_tools = model.bind_tools(tools=match_tools)
+                response = model_with_tools.invoke(messages)
 
-        except FMPError as e:
-            logger.error(f"FMP data access error: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Error in model processing: {str(e)}", exc_info=True)
-            raise
+                return {"messages": [response]}
+
+            except TimeoutError:
+                retry_count += 1
+                if retry_count == max_retries:
+                    raise
+                logger.warning(
+                    f"Model call timeout, attempt {retry_count}/{max_retries}"
+                )
+                continue
+            except FMPError as e:
+                logger.error(f"FMP data access error: {str(e)}")
+                raise
+            except Exception as e:
+                logger.error(f"Error in model processing: {str(e)}", exc_info=True)
+                raise
 
     try:
         # Initialize workflow components

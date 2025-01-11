@@ -1,7 +1,7 @@
 """FMPData toolkit for accessing financial market data."""
 
 import os
-from typing import Any, List
+from typing import Any, List, Optional
 
 from langchain_core.tools import BaseTool, BaseToolkit
 from pydantic import PrivateAttr
@@ -97,10 +97,12 @@ class FMPDataToolkit(BaseToolkit):
 
     _vector_store: Any = PrivateAttr()
     _tools: List[BaseTool] = PrivateAttr()
+    fmp_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    query: Optional[str]
+    num_results: int = 3
 
-    model_config = {"arbitrary_types_allowed": True}
-
-    def __init__(self, **data):
+    def __init__(self, query: str, **data):
         try:
             from fmp_data.lc import create_vector_store
         except ImportError:
@@ -108,8 +110,10 @@ class FMPDataToolkit(BaseToolkit):
                 "Could not import fmp_data python package. "
                 "Please install it with `pip install 'fmp_data[langchain]'`."
             )
-
-        super().__init__(**data)
+        all_data = {"query": query, **data}
+        super().__init__(**all_data)
+        if not self.query:
+            raise ValueError("query parameter is required")
 
         # Get API keys with environment variable fallback
         self._validate_and_set_api_keys()
@@ -122,12 +126,12 @@ class FMPDataToolkit(BaseToolkit):
 
     def _validate_and_set_api_keys(self) -> None:
         """Validate and set API keys from arguments or environment variables."""
-        self.fmp_api_key = self.fmp_api_key or os.environ.get("FMPDATA_API_KEY")
+        self.fmp_api_key = self.fmp_api_key or os.environ.get("FMP_API_KEY")
         self.openai_api_key = self.openai_api_key or os.environ.get("OPENAI_API_KEY")
 
         missing_keys = []
         if not self.fmp_api_key:
-            missing_keys.append("FMPDATA_API_KEY")
+            missing_keys.append("FMP_API_KEY")
         if not self.openai_api_key:
             missing_keys.append("OPENAI_API_KEY")
 
