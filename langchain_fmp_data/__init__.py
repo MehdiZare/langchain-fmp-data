@@ -1,6 +1,6 @@
 from importlib import metadata
 
-from langchain_fmp_data.toolkits import FmpDataToolkit
+from langchain_fmp_data.toolkits import FMPDataToolkit
 from langchain_fmp_data.tools import FMPDataTool
 
 try:
@@ -11,7 +11,7 @@ except metadata.PackageNotFoundError:
 del metadata  # optional, avoids polluting the results of dir(__package__)
 
 __all__ = [
-    "FmpDataToolkit",
+    "FMPDataToolkit",
     "FMPDataTool",
     "__version__",
 ]
