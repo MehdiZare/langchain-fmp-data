@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Annotated, Any, Dict, List, Literal, TypedDict
+from typing import Annotated, Any, Dict, List, Literal, TypedDict, cast
 
 from fmp_data.exceptions import FMPError
 from fmp_data.lc import EndpointVectorStore
@@ -125,7 +125,10 @@ def should_continue(state: MessagesState) -> Literal["tools", "__end__"]:
             logger.warning("Last message has no tool_calls attribute")
             return END
 
-        return "tools" if last_message.tool_calls else END
+        return cast(
+            Literal["tools", "__end__"],
+            "tools" if last_message.tool_calls else "__end__",
+        )
 
     except Exception as e:
         logger.error(f"Error in continuation check: {str(e)}", exc_info=True)
@@ -147,6 +150,7 @@ def validate_workflow_params(
 
     if max_toolset_size < 1:
         raise ValueError("max_toolset_size must be greater than 0")
+    return None
 
 
 def create_fmp_data_workflow(
