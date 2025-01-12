@@ -40,21 +40,25 @@ jobs:
         with:
           path: ~/.cache/pypoetry
           key: poetry-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            poetry-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Install dependencies with Dynamic Versioning
-        run: poetry install --no-interaction
+        run: |
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --with dev,test
 
       - name: Run style checks
         run: |
-          poetry run black . --check
-          poetry run isort . --check
-          poetry run ruff check .
+          poetry run black . --check --diff
+          poetry run isort . --check --diff
 
       - name: Run type checks
         run: poetry run mypy .
 
       - name: Run security checks
-        run: poetry run bandit -r fmp_data
+        run: poetry run bandit -r langchain_fmp_data
 
       - name: Run tests with coverage
         run: poetry run pytest --cov=langchain_fmp_data --cov-report=xml
