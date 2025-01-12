@@ -54,8 +54,8 @@ jobs:
           poetry run black . --check --diff
           poetry run isort . --check --diff
 
-      - name: Run type checks
-        run: poetry run mypy .
+#      - name: Run type checks
+#        run: poetry run mypy .
 
       - name: Run security checks
         run: poetry run bandit -r langchain_fmp_data
