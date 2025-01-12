@@ -171,10 +171,12 @@ jobs:
           poetry publish --skip-existing --verbose
           echo "Published successfully!"
 
-  create-release:
+create-release:
     name: Create GitHub Release
     needs: [ publish-prod ]
-    if: github.event.inputs.publish_to_pypi == 'true'
+    if: |
+      success() &&
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -192,6 +194,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body: |
             ## What's Changed
