@@ -1,6 +1,6 @@
 # langchain-fmp-data
 
-This package contains the LangChain integration with FmpData
+This package contains the LangChain integration with FMPData
 
 ## Installation
 
@@ -8,38 +8,41 @@ This package contains the LangChain integration with FmpData
 pip install -U langchain-fmp-data
 ```
 
-And you should configure credentials by setting the following environment variables:
+## ToolBox
 
-* TODO: fill this out
+You can pass a natural language query indicating what type of tools you want to have. ToolKit return list of num_results tools that best match your query.
 
-## Chat Models
-
-`ChatFmpData` class exposes chat models from FmpData.
+OpenAI is used for getting embedding so we can run similarity search on tools.
 
 ```python
-from langchain_fmp_data import ChatFmpData
+import os
+from langchain_fmp_data import FMPDataToolkit
 
-llm = ChatFmpData()
-llm.invoke("Sing a ballad of LangChain.")
+os.environ["FMP_API_KEY"] = "your-fmp-api-key" # pragma: allowlist secret
+os.environ["OPENAI_API_KEY"] = "your-openai-api-key" # pragma: allowlist secret
+
+query = "Stock market prices, fundamental and technical data"
+
+fmp_toolkit = FMPDataToolkit(query=query, num_results=10)
+
+tools = fmp_toolkit.get_tools()
 ```
 
-## Embeddings
+## Tool
 
-`FmpDataEmbeddings` class exposes embeddings from FmpData.
-
-```python
-from langchain_fmp_data import FmpDataEmbeddings
-
-embeddings = FmpDataEmbeddings()
-embeddings.embed_query("What is the meaning of life?")
-```
-
-## LLMs
-`FmpDataLLM` class exposes LLMs from FmpData.
+Tool gives you a lang-graph based agent that can answer your questions. Under the hood, the agent retrieve tools relevant to your query and call Open AI to answer your question.
 
 ```python
-from langchain_fmp_data import FmpDataLLM
+import os
+from langchain_fmp_data import FMPDataTool
 
-llm = FmpDataLLM()
-llm.invoke("The meaning of life is")
+os.environ["FMP_API_KEY"] = "your-fmp-api-key" # pragma: allowlist secret
+os.environ["OPENAI_API_KEY"] = "your-openai-api-key" # pragma: allowlist secret
+
+query = "What is the latest price of Bitcoin?"
+
+tool = FMPDataTool()
+
+response = tool.invoke({"query": query})
+print(response)
 ```
