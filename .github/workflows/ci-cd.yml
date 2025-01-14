@@ -171,7 +171,7 @@ jobs:
           poetry publish --skip-existing --verbose
           echo "Published successfully!"
 
-create-release:
+  create-release:
     name: Create GitHub Release
     needs: [ publish-prod ]
     if: |
