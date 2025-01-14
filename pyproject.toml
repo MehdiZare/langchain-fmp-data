@@ -8,15 +8,14 @@ version = "0.1.0"
 description = "An integration package connecting FmpData and LangChain"
 authors = []
 readme = "README.md"
-repository = "https://github.com/langchain-ai/langchain"
+repository = "https://github.com/MehdiZare/langchain-fmp-data"
 license = "MIT"
 
 [tool.mypy]
 disallow_untyped_defs = "True"
 
 [tool.poetry.urls]
-"Source Code" = "https://github.com/langchain-ai/langchain/tree/master/libs/partners/fmp-data"
-"Release Notes" = "https://github.com/langchain-ai/langchain/releases?q=tag%3A%22fmp-data%3D%3D0%22&expanded=true"
+"Source Code" = "https://github.com/MehdiZare/langchain-fmp-data"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
