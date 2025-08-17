@@ -14,13 +14,25 @@ license = "MIT"
 [tool.mypy]
 disallow_untyped_defs = "True"
 
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]  # Line too long - handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
 [tool.poetry.urls]
 "Source Code" = "https://github.com/MehdiZare/langchain-fmp-data"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<4.0"
+python = ">=3.10,<3.14"
 langchain-core = "^0.3.15"
-fmp-data = { extras = ["langchain"], version = "^0.3.1" }
+fmp-data = { extras = ["langchain"], version = "^1.0.0" }
 langgraph = "^0.2.62"
 langchain-openai = "^0.3.0"
 faiss-cpu = "^1.9.0.post1"
@@ -54,8 +66,7 @@ optional = true
 optional = true
 
 [tool.poetry.group.dev.dependencies]
-black = "^24.10.0"
-isort = "^5.13.2"
+ruff = "^0.8.5"
 mypy = "^1.14.1"
 bandit = "^1.8.0"
 
