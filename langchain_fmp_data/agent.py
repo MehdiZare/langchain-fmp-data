@@ -76,9 +76,7 @@ class BasicToolNode:
                     raise ValueError(f"Unknown tool: {tool_name}")
 
                 try:
-                    tool_result = self.tools_by_name[tool_name].invoke(
-                        tool_call["args"]
-                    )
+                    tool_result = self.tools_by_name[tool_name].invoke(tool_call["args"])
                     outputs.append(
                         ToolMessage(
                             content=json.dumps(tool_result),
@@ -187,9 +185,7 @@ def create_fmp_data_workflow(
                 messages = state["messages"]
                 query = messages[-1].content
 
-                match_tools = vector_store.get_tools(
-                    query, k=max_toolset_size, provider="openai"
-                )
+                match_tools = vector_store.get_tools(query, k=max_toolset_size, provider="openai")
 
                 if not match_tools:
                     logger.warning("No matching tools found for query")
@@ -204,9 +200,7 @@ def create_fmp_data_workflow(
                 retry_count += 1
                 if retry_count == max_retries:
                     raise
-                logger.warning(
-                    f"Model call timeout, attempt {retry_count}/{max_retries}"
-                )
+                logger.warning(f"Model call timeout, attempt {retry_count}/{max_retries}")
                 continue
             except FMPError as e:
                 logger.error(f"FMP data access error: {str(e)}")

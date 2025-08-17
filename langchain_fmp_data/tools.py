@@ -45,9 +45,7 @@ class FMPDataToolInput(BaseModel):
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.NATURAL_LANGUAGE,
-        description=(
-            "Format of the response (natural language, data structure, or both)" ""
-        ),
+        description=("Format of the response (natural language, data structure, or both)"),
     )
 
 
@@ -116,9 +114,7 @@ class FMPDataTool(BaseTool):
             )
 
         self.max_iterations = max_iterations
-        self.llm = ChatOpenAI(
-            temperature=temperature, openai_api_key=self.openai_api_key
-        )
+        self.llm = ChatOpenAI(temperature=temperature, openai_api_key=self.openai_api_key)
 
         # Initialize vector store
         try:
@@ -210,7 +206,5 @@ class FMPDataTool(BaseTool):
             return content
         except json.JSONDecodeError:
             if response_format != ResponseFormat.NATURAL_LANGUAGE:
-                logger.warning(
-                    "Failed to parse response as JSON, returning raw content"
-                )
+                logger.warning("Failed to parse response as JSON, returning raw content")
             return content
