@@ -13,7 +13,7 @@ This repository uses GitHub Actions for CI/CD with automatic versioning and PyPI
   - Check imports: Validates import statements
 
 ### 2. Release Pipeline (`release.yml`)
-- **Triggers**: 
+- **Triggers**:
   - PR merge to `main` → Bump version & publish to PyPI
   - Push to `dev` → Publish to TestPyPI
 - **Purpose**: Automated versioning and package publishing
@@ -50,7 +50,7 @@ Version bumps are automatic based on PR labels:
 
 ### Production (PyPI)
 - **When**: PR merged to `main` with version label
-- **Process**: 
+- **Process**:
   1. Version automatically bumped based on label
   2. Package built and published to PyPI
   3. GitHub Release created
