@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.errors import GraphRecursionError
 
 from langchain_fmp_data.tools import FMPDataTool, ResponseFormat
@@ -36,7 +35,7 @@ class TestFMPDataToolExtended:
         """Test initialization handles vector store config errors"""
         with patch("langchain_fmp_data.tools.create_vector_store") as mock_create_vs:
             from fmp_data.exceptions import ConfigError
-            
+
             mock_create_vs.side_effect = ConfigError("Config error")
 
             with pytest.raises(ValueError, match="Failed to initialize vector store"):
@@ -46,7 +45,7 @@ class TestFMPDataToolExtended:
         """Test initialization handles authentication errors"""
         with patch("langchain_fmp_data.tools.create_vector_store") as mock_create_vs:
             from fmp_data.exceptions import AuthenticationError
-            
+
             mock_create_vs.side_effect = AuthenticationError("Auth error")
 
             with pytest.raises(ValueError, match="Failed to initialize vector store"):
@@ -183,4 +182,3 @@ class TestFMPDataToolExtended:
         thread_id3 = tool.get_thread_id(refresh=True)
         assert thread_id3 != thread_id1
         assert tool.thread_id == thread_id3
-

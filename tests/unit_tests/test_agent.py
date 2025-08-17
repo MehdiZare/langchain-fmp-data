@@ -1,9 +1,9 @@
 """Unit tests for agent module"""
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from langchain_fmp_data.agent import (
@@ -41,9 +41,7 @@ class TestBasicToolNode:
         node = BasicToolNode([tool])
 
         message = MagicMock()
-        message.tool_calls = [
-            {"name": "test_tool", "args": {"param": "value"}, "id": "123"}
-        ]
+        message.tool_calls = [{"name": "test_tool", "args": {"param": "value"}, "id": "123"}]
 
         state = {"messages": [message]}
         result = node(state)
@@ -56,7 +54,7 @@ class TestBasicToolNode:
     def test_call_no_messages(self):
         """Test calling BasicToolNode with no messages raises error"""
         node = BasicToolNode([])
-        
+
         with pytest.raises(ValueError, match="No messages found"):
             node({})
 
@@ -65,9 +63,9 @@ class TestBasicToolNode:
         node = BasicToolNode([])
         message = MagicMock()
         del message.tool_calls  # Remove tool_calls attribute
-        
+
         state = {"messages": [message]}
-        
+
         with pytest.raises(ValueError, match="no tool calls"):
             node(state)
 
@@ -75,12 +73,10 @@ class TestBasicToolNode:
         """Test calling BasicToolNode with unknown tool raises error"""
         node = BasicToolNode([])
         message = MagicMock()
-        message.tool_calls = [
-            {"name": "unknown_tool", "args": {}, "id": "123"}
-        ]
-        
+        message.tool_calls = [{"name": "unknown_tool", "args": {}, "id": "123"}]
+
         state = {"messages": [message]}
-        
+
         with pytest.raises(ValueError, match="Unknown tool: unknown_tool"):
             node(state)
 
@@ -93,12 +89,10 @@ class TestBasicToolNode:
         node = BasicToolNode([tool])
 
         message = MagicMock()
-        message.tool_calls = [
-            {"name": "failing_tool", "args": {}, "id": "456"}
-        ]
+        message.tool_calls = [{"name": "failing_tool", "args": {}, "id": "456"}]
 
         state = {"messages": [message]}
-        
+
         with pytest.raises(ToolExecutionError, match="Failed to execute failing_tool"):
             node(state)
 

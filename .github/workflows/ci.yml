@@ -10,7 +10,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -112,7 +112,7 @@ jobs:
   check-imports:
     name: Check Imports
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
