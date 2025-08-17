@@ -1,0 +1,256 @@
+name: Release Pipeline
+
+on:
+  push:
+    branches: 
+      - main
+      - dev
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: poetry-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            poetry-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --with dev,test
+
+      - name: Run style checks
+        run: |
+          poetry run ruff check langchain_fmp_data/
+          poetry run ruff format langchain_fmp_data/ --check
+
+      - name: Run type checks
+        run: poetry run mypy langchain_fmp_data/ --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        run: poetry run pytest tests/ --cov=langchain_fmp_data --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          files: ./coverage.xml
+
+  bump-version:
+    name: Bump Version
+    needs: test
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.pull_request.merged == true && 
+      github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Get PR labels
+        id: labels
+        run: |
+          labels="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          echo "labels=$labels" >> $GITHUB_OUTPUT
+          
+          if [[ "$labels" == *"major"* ]]; then
+            echo "bump=major" >> $GITHUB_OUTPUT
+          elif [[ "$labels" == *"minor"* ]]; then
+            echo "bump=minor" >> $GITHUB_OUTPUT
+          elif [[ "$labels" == *"patch"* ]]; then
+            echo "bump=patch" >> $GITHUB_OUTPUT
+          else
+            echo "bump=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version
+        id: bump
+        run: |
+          current_version=$(poetry version -s)
+          echo "Current version: $current_version"
+          
+          poetry version ${{ steps.labels.outputs.bump }}
+          new_version=$(poetry version -s)
+          echo "New version: $new_version"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add pyproject.toml
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
+          git push
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: test
+    if: |
+      github.ref == 'refs/heads/dev' && 
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Poetry for TestPyPI
+        run: |
+          poetry config repositories.testpypi https://test.pypi.org/legacy/
+          poetry config pypi-token.testpypi ${{ secrets.TEST_PYPI_TOKEN }}
+
+      - name: Build package
+        run: |
+          # Add dev suffix for test builds
+          current_version=$(poetry version -s)
+          timestamp=$(date +%Y%m%d%H%M%S)
+          poetry version "${current_version}.dev${timestamp}"
+          poetry build
+
+      - name: Publish to TestPyPI
+        run: poetry publish -r testpypi --skip-existing
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [test, bump-version]
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.pull_request.merged == true && 
+      github.base_ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main  # Make sure we get the version bump commit
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Poetry for PyPI
+        run: poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+
+      - name: Build package
+        run: poetry build
+
+      - name: Publish to PyPI
+        run: poetry publish --skip-existing
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.bump-version.outputs.new_version }}
+          name: Release v${{ needs.bump-version.outputs.new_version }}
+          body: |
+            ## Changes
+            ${{ github.event.pull_request.title }}
+            
+            ${{ github.event.pull_request.body }}
+            
+            ---
+            Full changelog: https://github.com/${{ github.repository }}/compare/v${{ needs.bump-version.outputs.new_version }}...HEAD
+          generate_release_notes: true
+
+  publish-pypi-direct:
+    name: Publish to PyPI (Direct Push)
+    needs: test
+    if: |
+      github.ref == 'refs/heads/main' && 
+      github.event_name == 'push' &&
+      github.event.head_commit.message != 'chore: bump version*'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Poetry for PyPI
+        run: poetry config pypi-token.pypi ${{ secrets.PYPI_TOKEN }}
+
+      - name: Build package
+        run: poetry build
+
+      - name: Publish to PyPI
+        run: poetry publish --skip-existing
