@@ -96,20 +96,31 @@ jobs:
           curl -sSL https://install.python-poetry.org | python3 -
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Get PR labels
+      - name: Get PR labels and determine version bump
         id: labels
         run: |
           labels="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          echo "PR labels: $labels"
           echo "labels=$labels" >> $GITHUB_OUTPUT
           
-          if [[ "$labels" == *"major"* ]]; then
+          # Also check PR title for version hints if no labels
+          pr_title="${{ github.event.pull_request.title }}"
+          pr_title_lower=$(echo "$pr_title" | tr '[:upper:]' '[:lower:]')
+          
+          # Determine version bump from labels first, then title
+          if [[ "$labels" == *"major"* ]] || [[ "$pr_title_lower" == *"breaking"* ]]; then
             echo "bump=major" >> $GITHUB_OUTPUT
-          elif [[ "$labels" == *"minor"* ]]; then
+            echo "Version bump: MAJOR"
+          elif [[ "$labels" == *"minor"* ]] || [[ "$pr_title_lower" == *"feat"* ]] || [[ "$pr_title_lower" == *"feature"* ]]; then
             echo "bump=minor" >> $GITHUB_OUTPUT
-          elif [[ "$labels" == *"patch"* ]]; then
+            echo "Version bump: MINOR"
+          elif [[ "$labels" == *"patch"* ]] || [[ "$pr_title_lower" == *"fix"* ]] || [[ "$pr_title_lower" == *"bug"* ]]; then
             echo "bump=patch" >> $GITHUB_OUTPUT
+            echo "Version bump: PATCH"
           else
+            # Default to patch for any other changes
             echo "bump=patch" >> $GITHUB_OUTPUT
+            echo "Version bump: PATCH (default)"
           fi
 
       - name: Bump version

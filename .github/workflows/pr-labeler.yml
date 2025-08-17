@@ -10,6 +10,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
       
     steps:
       - name: Label PR based on title
@@ -19,68 +20,93 @@ jobs:
             const pr = context.payload.pull_request;
             const title = pr.title.toLowerCase();
             const body = (pr.body || '').toLowerCase();
-            const labels = [];
+            const labelsToAdd = [];
+            
+            // Get existing labels in the repository
+            let existingLabels = [];
+            try {
+              const labelsResponse = await github.rest.issues.listLabelsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              existingLabels = labelsResponse.data.map(l => l.name.toLowerCase());
+            } catch (error) {
+              console.log('Could not fetch existing labels:', error.message);
+              return;
+            }
             
             // Check for version bump indicators
             if (title.includes('breaking') || title.includes('major') || body.includes('breaking change')) {
-              labels.push('major');
+              if (existingLabels.includes('major')) labelsToAdd.push('major');
             } else if (title.includes('feat') || title.includes('feature') || title.includes('add')) {
-              labels.push('minor');
+              if (existingLabels.includes('minor')) labelsToAdd.push('minor');
             } else if (title.includes('fix') || title.includes('bug') || title.includes('patch')) {
-              labels.push('patch');
+              if (existingLabels.includes('patch')) labelsToAdd.push('patch');
             } else if (title.includes('docs') || title.includes('chore') || title.includes('refactor')) {
-              labels.push('patch');
+              if (existingLabels.includes('patch')) labelsToAdd.push('patch');
             }
             
-            // Add type labels
-            if (title.includes('fix') || title.includes('bug')) {
-              labels.push('bug');
+            // Add type labels (only if they exist)
+            if ((title.includes('fix') || title.includes('bug')) && existingLabels.includes('bug')) {
+              labelsToAdd.push('bug');
             }
-            if (title.includes('feat') || title.includes('feature')) {
-              labels.push('enhancement');
+            if ((title.includes('feat') || title.includes('feature')) && existingLabels.includes('enhancement')) {
+              labelsToAdd.push('enhancement');
             }
-            if (title.includes('docs')) {
-              labels.push('documentation');
+            if (title.includes('docs') && existingLabels.includes('documentation')) {
+              labelsToAdd.push('documentation');
             }
-            if (title.includes('test')) {
-              labels.push('testing');
+            if (title.includes('test') && existingLabels.includes('testing')) {
+              labelsToAdd.push('testing');
             }
-            if (title.includes('chore') || title.includes('ci') || title.includes('build')) {
-              labels.push('maintenance');
-            }
-            
-            // Only add labels if we found some
-            if (labels.length > 0) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                labels: labels
-              });
+            if ((title.includes('chore') || title.includes('ci') || title.includes('build')) && existingLabels.includes('maintenance')) {
+              labelsToAdd.push('maintenance');
             }
             
-            // Add comment about versioning
-            const hasVersionLabel = labels.some(l => ['major', 'minor', 'patch'].includes(l));
-            if (hasVersionLabel) {
-              const comment = `🏷️ This PR has been labeled for version bumping: **${labels.find(l => ['major', 'minor', 'patch'].includes(l))}**\n\nWhen merged to main, the version will be automatically bumped and published to PyPI.`;
-              
-              // Check if we already commented
-              const comments = await github.rest.issues.listComments({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number
-              });
-              
-              const botComment = comments.data.find(c => 
-                c.user.type === 'Bot' && c.body.includes('version bumping')
-              );
-              
-              if (!botComment) {
-                await github.rest.issues.createComment({
+            // Only add labels if we found some that exist
+            if (labelsToAdd.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: pr.number,
-                  body: comment
+                  labels: labelsToAdd
                 });
+                console.log(`Added labels: ${labelsToAdd.join(', ')}`);
+              } catch (error) {
+                console.log('Error adding labels:', error.message);
+              }
+            } else {
+              console.log('No matching labels found to add');
+            }
+            
+            // Add comment about versioning (only if we added version labels)
+            const versionLabel = labelsToAdd.find(l => ['major', 'minor', 'patch'].includes(l));
+            if (versionLabel) {
+              const comment = `🏷️ This PR has been labeled for version bumping: **${versionLabel}**\n\nWhen merged to main, the version will be automatically bumped and published to PyPI.`;
+              
+              try {
+                // Check if we already commented
+                const comments = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number
+                });
+                
+                const botComment = comments.data.find(c => 
+                  c.user.type === 'Bot' && c.body.includes('version bumping')
+                );
+                
+                if (!botComment) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    body: comment
+                  });
+                  console.log('Added version bump comment');
+                }
+              } catch (error) {
+                console.log('Error adding comment:', error.message);
               }
             }
