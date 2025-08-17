@@ -1,0 +1,28 @@
+name: Block PR to Main
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  block-pr-to-main:
+    name: Block Direct PRs to Main Branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR source branch
+        run: |
+          echo "This repository does not allow direct pull requests to the main branch."
+          echo "Please create your pull request against the 'dev' branch instead."
+          echo ""
+          echo "Workflow:"
+          echo "1. Create feature branch from 'dev'"
+          echo "2. Make your changes"
+          echo "3. Create PR to 'dev' branch"
+          echo "4. After review and merge to 'dev', changes will be promoted to 'main'"
+          echo ""
+          echo "Current PR details:"
+          echo "- Source branch: ${{ github.head_ref }}"
+          echo "- Target branch: ${{ github.base_ref }}"
+          echo "- PR number: #${{ github.event.number }}"
+          exit 1
