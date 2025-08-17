@@ -45,9 +45,7 @@ class FMPDataToolInput(BaseModel):
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.NATURAL_LANGUAGE,
-        description=(
-            "Format of the response (natural language, data structure, or both)" ""
-        ),
+        description=("Format of the response (natural language, data structure, or both)"),
     )
 
 
@@ -116,9 +114,7 @@ class FMPDataTool(BaseTool):
             )
 
         self.max_iterations = max_iterations
-        self.llm = ChatOpenAI(
-            temperature=temperature, openai_api_key=self.openai_api_key
-        )
+        self.llm = ChatOpenAI(temperature=temperature, openai_api_key=self.openai_api_key)
 
         # Initialize vector store
         try:
@@ -189,33 +185,6 @@ class FMPDataTool(BaseTool):
                 else error_msg
             )
 
-    def validate_api_keys(self) -> None:
-        """Validate required API keys are present."""
-        missing = []
-        if not self.fmp_api_key:
-            missing.append("FMP_API_KEY")
-        if not self.openai_api_key:
-            missing.append("OPENAI_API_KEY")
-        if missing:
-            raise ValueError(
-                f"Missing required API keys: {', '.join(missing)}. "
-                "Set as environment variables or pass to constructor."
-            )
-
-    def initialize_vector_store(self) -> None:
-        """Initialize or load vector store."""
-        try:
-            self.vector_store = create_vector_store(
-                fmp_api_key=self.fmp_api_key,
-                openai_api_key=self.openai_api_key,
-            )
-            if not self.vector_store:
-                raise RuntimeError("Vector store initialization failed")
-        except (ConfigError, AuthenticationError) as e:
-            raise ValueError(f"Failed to initialize vector store: {str(e)}")
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error initializing vector store: {str(e)}")
-
     def get_thread_id(self, refresh: bool = False) -> str:
         """Get or create thread ID for conversation tracking."""
         if refresh or not self.thread_id:
@@ -237,7 +206,5 @@ class FMPDataTool(BaseTool):
             return content
         except json.JSONDecodeError:
             if response_format != ResponseFormat.NATURAL_LANGUAGE:
-                logger.warning(
-                    "Failed to parse response as JSON, returning raw content"
-                )
+                logger.warning("Failed to parse response as JSON, returning raw content")
             return content
