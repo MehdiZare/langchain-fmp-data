@@ -10,11 +10,11 @@ A LangChain integration for Financial Modeling Prep (FMP) API, providing easy ac
 
 ## Features
 
-- 🔧 **FMPDataToolkit**: Query-based toolkit for retrieving specific financial data tools
-- 🤖 **FMPDataTool**: AI-powered agent for natural language financial data queries
-- 📊 **Comprehensive Financial Data**: Access to stock prices, financial statements, economic indicators, and more
-- 🚀 **LangGraph Integration**: Built on LangGraph for reliable agent workflows
-- 🔍 **Vector Search**: Intelligent tool selection using embeddings and similarity search
+- **FMPDataToolkit**: Query-based toolkit for retrieving specific financial data tools
+- **FMPDataTool**: AI-powered agent for natural language financial data queries
+- **Comprehensive Financial Data**: Access to stock prices, financial statements, economic indicators, and more
+- **LangGraph Integration**: Built on LangGraph for reliable agent workflows
+- **Vector Search**: Intelligent tool selection using embeddings and similarity search
 
 ## Installation
 
@@ -125,32 +125,27 @@ git clone https://github.com/MehdiZare/langchain-fmp-data.git
 cd langchain-fmp-data
 ```
 
-2. Install Poetry (if not already installed):
+2. Install uv (if not already installed):
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 3. Install dependencies:
 ```bash
-poetry install --with dev,test
-```
-
-4. Set up pre-commit hooks:
-```bash
-poetry run pre-commit install
+uv sync --extra dev --extra test
 ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-poetry run pytest
+uv run pytest
 
 # Run with coverage
-poetry run pytest --cov=langchain_fmp_data --cov-report=term-missing
+uv run pytest --cov=langchain_fmp_data --cov-report=term-missing
 
 # Run specific test file
-poetry run pytest tests/unit_tests/test_tools.py
+uv run pytest tests/unit_tests/test_tools.py
 ```
 
 ### Code Quality
@@ -159,28 +154,17 @@ This project uses several tools to maintain code quality:
 
 - **Ruff**: Fast Python linter and formatter
 - **Mypy**: Static type checking
-- **Pre-commit**: Automatic code quality checks before commits
 
 ```bash
-# Manual linting and formatting
-poetry run ruff check langchain_fmp_data/
-poetry run ruff format langchain_fmp_data/
+# Linting
+uv run ruff check langchain_fmp_data/
+
+# Formatting
+uv run ruff format langchain_fmp_data/
 
 # Type checking
-poetry run mypy langchain_fmp_data/
-
-# Run all pre-commit hooks
-poetry run pre-commit run --all-files
+uv run mypy langchain_fmp_data/
 ```
-
-### Pre-commit Hooks
-
-The following checks run automatically on commit:
-- Ruff linting and formatting
-- File encoding and line ending fixes
-- YAML/JSON/TOML validation
-- Python AST validation
-- Debug statement detection
 
 ## CI/CD
 
@@ -189,20 +173,24 @@ The following checks run automatically on commit:
 - **CI**: Runs on all PRs and pushes to main/dev branches
   - Linting with Ruff
   - Type checking with Mypy
-  - Tests on Python 3.10, 3.11, 3.12
+  - Tests on Python 3.10, 3.11, 3.12, 3.13, 3.14
   - Cross-platform testing (Ubuntu, macOS, Windows)
-  - Code coverage reporting
+  - Code coverage reporting to Codecov
 
 - **Release**: Automated version management and publishing
-  - Automatic version bumping based on PR labels
-  - Publishing to PyPI (from main branch)
-  - Publishing to TestPyPI (from dev branch)
+  - Tag-based versioning from PR labels
+  - Publishing to PyPI with trusted publishing
+  - GitHub release creation with notes
+
+- **Dev Release**: Development releases to TestPyPI
+  - Automatic dev version calculation
+  - Published on every push to dev branch
 
 ### PR Labels for Versioning
 
-- `major`: Bumps major version (1.0.0 → 2.0.0)
-- `minor`: Bumps minor version (1.0.0 → 1.1.0)
-- `patch`: Bumps patch version (1.0.0 → 1.0.1)
+- `release:major`: Bumps major version (1.0.0 → 2.0.0)
+- `release:minor`: Bumps minor version (1.0.0 → 1.1.0)
+- `release:patch`: Bumps patch version (1.0.0 → 1.0.1)
 
 ## Contributing
 
@@ -211,9 +199,8 @@ Contributions are welcome! Please follow these guidelines:
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes and ensure tests pass
-4. Run pre-commit hooks (`pre-commit run --all-files`)
-5. Commit your changes with a descriptive message
-6. Push to your fork and open a Pull Request
+4. Commit your changes with a descriptive message
+5. Push to your fork and open a Pull Request
 
 ### Commit Message Format
 
@@ -240,17 +227,18 @@ langchain-fmp-data/
 ├── scripts/                # Utility scripts
 ├── .github/                # GitHub Actions workflows
 ├── pyproject.toml          # Project configuration
-├── README.md              # This file
-└── CLAUDE.md              # AI assistant documentation
+├── README.md               # This file
+└── CLAUDE.md               # AI assistant documentation
 ```
 
 ## Dependencies
 
-- **Python**: 3.10+
-- **LangChain**: Core and Community packages
-- **FMP-Data**: ^1.0.0 with LangChain extras
-- **LangGraph**: For agent workflows
-- **OpenAI**: For embeddings and LLM
+- **Python**: 3.10 - 3.14
+- **LangChain**: ^1.0.0
+- **LangChain Core**: ^1.0.0
+- **LangChain OpenAI**: ^1.0.0
+- **LangGraph**: ^1.0.0
+- **FMP-Data**: ^2.1.5 with LangChain extras
 
 ## License
 
@@ -258,9 +246,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- 📖 [Documentation](https://github.com/MehdiZare/langchain-fmp-data/wiki)
-- 🐛 [Issue Tracker](https://github.com/MehdiZare/langchain-fmp-data/issues)
-- 💬 [Discussions](https://github.com/MehdiZare/langchain-fmp-data/discussions)
+- [Issue Tracker](https://github.com/MehdiZare/langchain-fmp-data/issues)
+- [Discussions](https://github.com/MehdiZare/langchain-fmp-data/discussions)
 
 ## Acknowledgments
 
