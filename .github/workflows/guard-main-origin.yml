@@ -1,0 +1,26 @@
+# .github/workflows/guard-main-origin.yml
+name: Guard-Main-Origin
+
+on:
+  pull_request:
+    branches: [main]            # PRs whose *target* is main only
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ensure-valid-origin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if PR is from allowed branch
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          # Allow PRs from dev, hotfix, updates, or fea (feature) branches
+          if [[ "$BRANCH" == "dev" ]] || [[ "$BRANCH" =~ ^hotfix-.* ]] || [[ "$BRANCH" =~ ^updates-.* ]] || [[ "$BRANCH" =~ ^fea/.* ]]; then
+            echo "✅ Origin branch '$BRANCH' is allowed"
+          else
+            echo "::error::Main only accepts PRs from 'dev', 'hotfix-*', 'updates-*', or 'fea/*' branches. Current branch: $BRANCH"
+            exit 1
+          fi

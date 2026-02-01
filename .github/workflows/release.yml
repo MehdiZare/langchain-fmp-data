@@ -21,6 +21,7 @@ jobs:
        contains(github.event.pull_request.labels.*.name, 'release:patch'))
 
     runs-on: ubuntu-latest
+    environment: pypi
     env:
       PYTHON_VERSION: "3.12"
 
@@ -28,7 +29,7 @@ jobs:
       - name: 🛎️ Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Fetch all history for proper versioning
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🐍 Set up Python
@@ -41,7 +42,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: 📦 Install build dependencies
+      - name: 📦 Install dependencies
         run: |
           uv pip install --system build hatch
 
@@ -93,15 +94,27 @@ jobs:
           echo "VERSION=v$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "VERSION_NUMBER=$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      - name: 🏷️ Create and push tag
+      - name: 📝 Update version in pyproject.toml
+        run: |
+          # Update version in pyproject.toml
+          sed -i "s/^version = \".*\"/version = \"${{ steps.version.outputs.VERSION_NUMBER }}\"/" pyproject.toml
+          echo "Updated pyproject.toml to version ${{ steps.version.outputs.VERSION_NUMBER }}"
+          grep "^version" pyproject.toml
+
+      - name: 🏷️ Commit version bump and create tag
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
 
+          # Commit version bump
+          git add pyproject.toml
+          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NUMBER }}"
+
           # Create annotated tag
           git tag -a "${{ steps.version.outputs.VERSION }}" -m "Release ${{ steps.version.outputs.VERSION }}"
 
-          # Push tag
+          # Push commit and tag
+          git push origin HEAD:main
           git push origin "${{ steps.version.outputs.VERSION }}"
 
       - name: 📦 Build distribution
@@ -110,18 +123,20 @@ jobs:
 
       - name: 📋 Generate release notes from PR
         id: release_notes
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_NUMBER="${{ github.event.pull_request.number }}"
-          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
-
+          # Determine release type based on branch
           if [[ "$PR_BRANCH" =~ ^hotfix-.* ]]; then
             RELEASE_TYPE="🔥 Hotfix"
           else
             RELEASE_TYPE="🚀 Release"
           fi
 
+          # Get commits since last tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
             COMMIT_NOTES="Initial release"
@@ -129,6 +144,7 @@ jobs:
             COMMIT_NOTES=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD)
           fi
 
+          # Combine PR info and commit notes
           echo "NOTES<<EOF" >> $GITHUB_OUTPUT
           echo "### $RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
@@ -155,12 +171,13 @@ jobs:
 
             ### 🔗 Links
             - [PyPI Package](https://pypi.org/project/langchain-fmp-data/${{ steps.version.outputs.VERSION_NUMBER }}/)
+            - [GitHub Repository](https://github.com/MehdiZare/langchain-fmp-data)
           files: dist/*
           prerelease: false
           generate_release_notes: true
 
       - name: 🚀 Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
           skip-existing: false

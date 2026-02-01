@@ -1,13 +1,13 @@
-# Version labels (for automatic versioning)
-- name: major
+# Release labels (for automatic versioning)
+- name: release:major
   color: "e11d21"
   description: "Breaking changes - will bump major version (x.0.0)"
 
-- name: minor
+- name: release:minor
   color: "fbca04"
   description: "New features - will bump minor version (0.x.0)"
 
-- name: patch
+- name: release:patch
   color: "0e8a16"
   description: "Bug fixes and small changes - will bump patch version (0.0.x)"
 

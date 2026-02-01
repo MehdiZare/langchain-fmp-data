@@ -4,45 +4,47 @@ on:
   push:
     branches:
       - dev
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manual triggering
 
 permissions:
-  id-token: write
-  contents: read
-  pull-requests: read
+  id-token: write              # OIDC → Trusted Publishing
+  contents: read               # Read repository contents
+  pull-requests: read          # Read PR labels for version calculation
 
 jobs:
   dev-release:
     runs-on: ubuntu-latest
+    environment: testpypi
     env:
       PYTHON_VERSION: "3.12"
 
     steps:
-      - name: 🛎️ Checkout repository
+      - name: 🛎️  Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Needed for version calculation
           fetch-tags: true
 
-      - name: 🐍 Set up Python
+      - name: 🐍  Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: ⚡ Install uv
+      - name: ⚡  Install uv (with cache)
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
-      - name: 📦 Install build tools
+      - name: 📦  Install build tools
         run: |
           uv pip install --system build hatch
 
-      - name: 🔍 Check for PR with release labels
+      - name: 🔍  Check for PR with release labels
         id: pr_labels
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Find open PR from dev to main
           PR_JSON=$(gh pr list --head dev --base main --state open --json number,labels --limit 1)
 
           if [ "$PR_JSON" = "[]" ]; then
@@ -69,16 +71,20 @@ jobs:
             fi
           fi
 
-      - name: 🏷️ Calculate dev version
+      - name: 🏷️  Calculate dev version
         id: version
         run: |
+          # Get the latest tag
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           CURRENT_VERSION=${LATEST_TAG#v}
 
+          # Parse version components
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
+          # Create dev version with commit count since last tag
           COMMIT_COUNT=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "1")
 
+          # Calculate version based on release type from PR labels
           RELEASE_TYPE="${{ steps.pr_labels.outputs.RELEASE_TYPE }}"
 
           if [ "$RELEASE_TYPE" = "major" ]; then
@@ -86,6 +92,7 @@ jobs:
           elif [ "$RELEASE_TYPE" = "patch" ]; then
             DEV_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1)).dev${COMMIT_COUNT}"
           else
+            # Default to minor
             DEV_VERSION="${MAJOR}.$((MINOR + 1)).0.dev${COMMIT_COUNT}"
           fi
 
@@ -95,14 +102,13 @@ jobs:
           echo "DEV_TAG=$DEV_TAG" >> $GITHUB_OUTPUT
           echo "📦 Dev version: $DEV_VERSION (based on $RELEASE_TYPE release)"
 
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git tag -a "$DEV_TAG" -m "Dev release $DEV_TAG"
+          # Update version in pyproject.toml for the build
+          sed -i "s/^version = \".*\"/version = \"$DEV_VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml to version $DEV_VERSION"
+          grep "^version" pyproject.toml
 
-      - name: 📦 Build wheel & sdist
+      - name: 📦  Build wheel & sdist
         run: |
-          echo "🏷️ Current git state:"
-          git describe --tags --always
           echo "📦 Building package..."
 
           python -m build --wheel --sdist
@@ -110,15 +116,21 @@ jobs:
           echo "📦 Build completed. Contents of dist/:"
           ls -la dist/
 
-      - name: 🧪 Upload to Test PyPI
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+          # Verify the version in the built package
+          echo "📋 Checking built package version:"
+          if ls dist/*.tar.gz 1> /dev/null 2>&1; then
+            tar -tf dist/*.tar.gz | grep -E "(PKG-INFO|METADATA)" | head -1 | xargs tar -xOf dist/*.tar.gz | grep "^Version:" || echo "Version not found in metadata"
+          fi
+
+      - name: 🧪  Upload to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: dist
           skip-existing: true
           verbose: true
 
-      - name: 📝 Create summary
+      - name: 📝  Create summary
         run: |
           echo "## 🧪 Dev Release Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

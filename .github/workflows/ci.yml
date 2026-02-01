@@ -1,10 +1,7 @@
-name: CI
+name: Test-Matrix
 
 on:
   pull_request:
-    branches: [main, dev]
-  push:
-    branches: [main, dev]
 
 permissions:
   contents: read
@@ -14,126 +11,108 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: 🔍 Lint
+  tests:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: 🛎️ Checkout
-        uses: actions/checkout@v6
-
-      - name: 🐍 Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: ⚡ Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: 📦 Install dependencies
-        run: uv sync --extra dev
-
-      - name: 🔍 Run ruff check
-        run: uv run ruff check langchain_fmp_data/
-
-      - name: 🎨 Run ruff format
-        run: uv run ruff format langchain_fmp_data/ --check
-
-      - name: 🔬 Run mypy
-        run: uv run mypy langchain_fmp_data/ --ignore-missing-imports
-        continue-on-error: true
-
-  test:
-    name: 🧪 Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        os: [ubuntu-latest]
-        include:
-          - python-version: "3.12"
-            os: macos-latest
-          - python-version: "3.12"
-            os: windows-latest
+        python:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
 
     steps:
-      - name: 🛎️ Checkout
+      - name: 🛎️  Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-      - name: 🐍 Set up Python ${{ matrix.python-version }}
+      - name: 🐍  Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
 
-      - name: ⚡ Install uv
+      - name: ⚡  Install uv (with cache)
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
-      - name: 📦 Install dependencies
-        run: uv sync --extra dev --extra test
-
-      - name: ▶️ Run tests
-        run: uv run pytest tests/ --cov=langchain_fmp_data --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+      - name: ▶️  Run Tests
         env:
-          FMP_API_KEY: test_key
-          OPENAI_API_KEY: test_key
+          CI: "true"
+        run: |
+          # Install project with test dependencies
+          uv pip install --system -e ".[test]"
 
-      - name: 📤 Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.python-version }}-${{ matrix.os }}
-          path: junit.xml
+          # Run tests
+          echo "Running tests for Python ${{ matrix.python }}"
+          pytest -v
 
-      - name: 📈 Upload coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          files: ./coverage.xml
-          flags: unittests
+      - name: 🔍 Quality Gates
+        if: matrix.python == '3.12'
+        run: |
+          # Install dev dependencies for linting
+          uv pip install --system -e ".[dev]"
 
-  check-imports:
-    name: 🔗 Check Imports
+          # Run linting
+          ruff check langchain_fmp_data/ tests/
+
+          # Run type checking
+          mypy langchain_fmp_data/
+
+          # Run security checks
+          bandit -c pyproject.toml -r langchain_fmp_data/
+
+  # Coverage job - run all tests in one job for simplicity
+  coverage:
     runs-on: ubuntu-latest
-
     steps:
-      - name: 🛎️ Checkout
+      - name: 🛎️  Checkout
         uses: actions/checkout@v6
 
-      - name: 🐍 Set up Python
+      - name: 🐍  Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: ⚡ Install uv
+      - name: ⚡  Install uv
         uses: astral-sh/setup-uv@v7
+
+      - name: 📊 Run all tests with coverage
+        run: |
+          # Install project with test dependencies
+          uv pip install --system -e ".[test]"
+
+          # Run tests with coverage and JUnit XML for test analytics
+          pytest --cov=langchain_fmp_data --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy -v
+
+      - name: 📈 Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          enable-cache: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: MehdiZare/langchain-fmp-data
+          files: coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
 
-      - name: 📦 Install dependencies
-        run: uv sync
+      - name: 📊 Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: 🔗 Check imports
-        run: uv run python scripts/check_imports.py langchain_fmp_data/*.py
-
-  ci-expected:
-    name: ✅ CI Expected
+  test-matrix-expected:
+    name: Test-MatrixExpected
     runs-on: ubuntu-latest
-    needs: [lint, test, check-imports]
+    needs: [tests, coverage]
     if: ${{ always() }}
     steps:
-      - name: ✅ Verify all checks passed
+      - name: ✅ Verify matrix results
         run: |
-          if [[ "${{ needs.lint.result }}" != "success" || "${{ needs.test.result }}" != "success" || "${{ needs.check-imports.result }}" != "success" ]]; then
+          if [[ "${{ needs.tests.result }}" != "success" || "${{ needs.coverage.result }}" != "success" ]]; then
             echo "Upstream checks failed"
             exit 1
           fi
