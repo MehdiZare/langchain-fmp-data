@@ -142,7 +142,7 @@ uv sync --extra dev --extra test
 uv run pytest
 
 # Run with coverage
-uv run pytest --cov=langchain_fmp_data --cov-report=term-missing
+uv run pytest --cov=src/langchain_fmp_data --cov-report=term-missing
 
 # Run specific test file
 uv run pytest tests/unit_tests/test_tools.py
@@ -157,13 +157,13 @@ This project uses several tools to maintain code quality:
 
 ```bash
 # Linting
-uv run ruff check langchain_fmp_data/
+uv run ruff check src/langchain_fmp_data/
 
 # Formatting
-uv run ruff format langchain_fmp_data/
+uv run ruff format src/langchain_fmp_data/
 
 # Type checking
-uv run mypy langchain_fmp_data/
+uv run mypy src/langchain_fmp_data/
 ```
 
 ## CI/CD

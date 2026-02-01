@@ -24,10 +24,10 @@ comment:
 flags:
   unittests:
     paths:
-      - langchain_fmp_data/
+      - src/langchain_fmp_data/
     carryforward: true
 
   integration:
     paths:
-      - langchain_fmp_data/
+      - src/langchain_fmp_data/
     carryforward: true
