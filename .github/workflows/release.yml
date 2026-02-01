@@ -106,16 +106,23 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
 
-          # Commit version bump
-          git add pyproject.toml
-          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NUMBER }}"
+          # Check if tag already exists
+          if git rev-parse "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.VERSION }} already exists, skipping tag creation"
+            # Checkout to the existing tag to ensure we build the right version
+            git checkout "${{ steps.version.outputs.VERSION }}"
+          else
+            # Commit version bump
+            git add pyproject.toml
+            git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NUMBER }}"
 
-          # Create annotated tag
-          git tag -a "${{ steps.version.outputs.VERSION }}" -m "Release ${{ steps.version.outputs.VERSION }}"
+            # Create annotated tag
+            git tag -a "${{ steps.version.outputs.VERSION }}" -m "Release ${{ steps.version.outputs.VERSION }}"
 
-          # Push commit and tag
-          git push origin HEAD:main
-          git push origin "${{ steps.version.outputs.VERSION }}"
+            # Push commit and tag
+            git push origin HEAD:main
+            git push origin "${{ steps.version.outputs.VERSION }}"
+          fi
 
       - name: 📦 Build distribution
         run: |
