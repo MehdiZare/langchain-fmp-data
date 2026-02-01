@@ -37,13 +37,13 @@ jobs:
 
             // Check for version bump indicators
             if (title.includes('breaking') || title.includes('major') || body.includes('breaking change')) {
-              if (existingLabels.includes('major')) labelsToAdd.push('major');
+              if (existingLabels.includes('release:major')) labelsToAdd.push('release:major');
             } else if (title.includes('feat') || title.includes('feature') || title.includes('add')) {
-              if (existingLabels.includes('minor')) labelsToAdd.push('minor');
+              if (existingLabels.includes('release:minor')) labelsToAdd.push('release:minor');
             } else if (title.includes('fix') || title.includes('bug') || title.includes('patch')) {
-              if (existingLabels.includes('patch')) labelsToAdd.push('patch');
+              if (existingLabels.includes('release:patch')) labelsToAdd.push('release:patch');
             } else if (title.includes('docs') || title.includes('chore') || title.includes('refactor')) {
-              if (existingLabels.includes('patch')) labelsToAdd.push('patch');
+              if (existingLabels.includes('release:patch')) labelsToAdd.push('release:patch');
             }
 
             // Add type labels (only if they exist)
@@ -81,9 +81,10 @@ jobs:
             }
 
             // Add comment about versioning (only if we added version labels)
-            const versionLabel = labelsToAdd.find(l => ['major', 'minor', 'patch'].includes(l));
+            const versionLabel = labelsToAdd.find(l => ['release:major', 'release:minor', 'release:patch'].includes(l));
             if (versionLabel) {
-              const comment = `🏷️ This PR has been labeled for version bumping: **${versionLabel}**\n\nWhen merged to main, the version will be automatically bumped and published to PyPI.`;
+              const versionType = versionLabel.replace('release:', '');
+              const comment = `🏷️ This PR has been labeled for version bumping: **${versionType}**\n\nWhen merged to main, the version will be automatically bumped and published to PyPI.`;
 
               try {
                 // Check if we already commented

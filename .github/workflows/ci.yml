@@ -1,163 +1,119 @@
-name: CI
+name: Test-Matrix
 
 on:
   pull_request:
-    branches: [main, dev]
-  push:
-    branches: [main, dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
+  tests:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out the repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Poetry
-        run: |
-          # Try to install Poetry with retries
-          MAX_RETRIES=3
-          RETRY_COUNT=0
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if curl -sSL https://install.python-poetry.org | python3 -; then
-              break
-            fi
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "Retry $RETRY_COUNT/$MAX_RETRIES..."
-            sleep 5
-          done
-
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-3.12-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-3.12-
-
-      - name: Install dependencies
-        run: poetry install --no-interaction --with dev
-
-      - name: Run ruff
-        run: |
-          poetry run ruff check langchain_fmp_data/
-          poetry run ruff format langchain_fmp_data/ --check
-
-      - name: Run mypy
-        run: poetry run mypy langchain_fmp_data/ --ignore-missing-imports
-        continue-on-error: true
-
-  test:
-    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-        os: [ubuntu-latest]
-        include:
-          - python-version: "3.12"
-            os: macos-latest
-          - python-version: "3.12"
-            os: windows-latest
+        python:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
 
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: 🛎️  Checkout
+        uses: actions/checkout@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          fetch-depth: 0
 
-      - name: Install Poetry (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Install Poetry (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
-          echo "$env:APPDATA\Python\Scripts" >> $env:GITHUB_PATH
-
-      - name: Configure Poetry
-        run: |
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
+      - name: 🐍  Set up Python
+        uses: actions/setup-python@v6
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-${{ matrix.python-version }}-
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
 
-      - name: Install dependencies
-        run: poetry install --no-interaction --with dev,test
+      - name: ⚡  Install uv (with cache)
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
-      - name: Run tests
-        run: poetry run pytest tests/ --cov=langchain_fmp_data --cov-report=xml --cov-report=term
+      - name: ▶️  Run Tests
         env:
-          FMP_API_KEY: test_key
-          OPENAI_API_KEY: test_key
+          CI: "true"
+        run: |
+          # Install project with test dependencies
+          uv pip install --system -e ".[test]"
 
-      - name: Upload coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          files: ./coverage.xml
+          # Run tests
+          echo "Running tests for Python ${{ matrix.python }}"
+          pytest -v
 
-  check-imports:
-    name: Check Imports
+      - name: 🔍 Quality Gates
+        if: matrix.python == '3.12'
+        run: |
+          # Install dev dependencies for linting
+          uv pip install --system -e ".[dev]"
+
+          # Run linting
+          ruff check src/langchain_fmp_data/ tests/
+
+          # Run type checking
+          mypy src/langchain_fmp_data/
+
+          # Run security checks
+          bandit -c pyproject.toml -r src/langchain_fmp_data/
+
+  # Coverage job - run all tests in one job for simplicity
+  coverage:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v4
+      - name: 🛎️  Checkout
+        uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: 🐍  Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: ⚡  Install uv
+        uses: astral-sh/setup-uv@v7
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v4
+      - name: 📊 Run all tests with coverage
+        run: |
+          # Install project with test dependencies
+          uv pip install --system -e ".[test]"
+
+          # Run tests with coverage and JUnit XML for test analytics
+          pytest --cov=src/langchain_fmp_data --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy -v
+
+      - name: 📈 Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-3.12-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-3.12-
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: MehdiZare/langchain-fmp-data
+          files: coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
 
-      - name: Install dependencies
-        run: poetry install --no-interaction
+      - name: 📊 Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Check imports
+  test-matrix-expected:
+    name: Test-MatrixExpected
+    runs-on: ubuntu-latest
+    needs: [tests, coverage]
+    if: ${{ always() }}
+    steps:
+      - name: ✅ Verify matrix results
         run: |
-          poetry run python scripts/check_imports.py langchain_fmp_data/*.py
+          if [[ "${{ needs.tests.result }}" != "success" || "${{ needs.coverage.result }}" != "success" ]]; then
+            echo "Upstream checks failed"
+            exit 1
+          fi
+          echo "All required checks passed"

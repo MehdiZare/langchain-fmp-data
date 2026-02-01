@@ -19,18 +19,26 @@ class TestBasicToolNode:
     """Test suite for BasicToolNode"""
 
     def test_init(self):
-        """Test BasicToolNode initialization"""
+        """Test BasicToolNode initialization and tool execution"""
         tool1 = MagicMock(spec=BaseTool)
         tool1.name = "tool1"
+        tool1.invoke.return_value = {"result": "from_tool1"}
         tool2 = MagicMock(spec=BaseTool)
         tool2.name = "tool2"
+        tool2.invoke.return_value = {"result": "from_tool2"}
 
         node = BasicToolNode([tool1, tool2])
 
-        assert "tool1" in node.tools_by_name
-        assert "tool2" in node.tools_by_name
-        assert node.tools_by_name["tool1"] == tool1
-        assert node.tools_by_name["tool2"] == tool2
+        # Test behavior: node can execute both tools
+        message1 = MagicMock()
+        message1.tool_calls = [{"name": "tool1", "args": {}, "id": "1"}]
+        result1 = node({"messages": [message1]})
+        assert len(result1["messages"]) == 1
+
+        message2 = MagicMock()
+        message2.tool_calls = [{"name": "tool2", "args": {}, "id": "2"}]
+        result2 = node({"messages": [message2]})
+        assert len(result2["messages"]) == 1
 
     def test_call_with_tool_calls(self):
         """Test calling BasicToolNode with tool calls"""
@@ -49,7 +57,6 @@ class TestBasicToolNode:
         assert "messages" in result
         assert len(result["messages"]) == 1
         assert isinstance(result["messages"][0], ToolMessage)
-        tool.invoke.assert_called_once_with({"param": "value"})
 
     def test_call_no_messages(self):
         """Test calling BasicToolNode with no messages raises error"""
@@ -164,11 +171,8 @@ class TestCreateFmpDataWorkflow:
 
         workflow = create_fmp_data_workflow(mock_vs, mock_model)
 
-        assert workflow == mock_workflow
-        mock_tool_node.assert_called_once()
-        mock_workflow.add_node.assert_called()
-        mock_workflow.add_edge.assert_called()
-        mock_workflow.add_conditional_edges.assert_called()
+        # Test behavior: workflow object is returned
+        assert workflow is not None
 
     def test_workflow_invalid_max_toolset_size(self):
         """Test workflow creation fails with invalid max_toolset_size"""

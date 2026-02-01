@@ -1,13 +1,13 @@
 import json
 import logging
-from typing import Annotated, Any, Dict, List, Literal, TypedDict, cast
+from typing import Annotated, Any, Dict, List, Literal, Sequence, TypedDict, cast
 
 from fmp_data.exceptions import FMPError
 from fmp_data.lc import EndpointVectorStore
 from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, MessagesState, StateGraph
+from langgraph.graph import START, MessagesState, StateGraph
 from langgraph.graph.message import add_messages
 
 logger = logging.getLogger(__name__)
@@ -111,26 +111,23 @@ def should_continue(state: MessagesState) -> Literal["tools", "__end__"]:
     try:
         if not isinstance(state, dict) or "messages" not in state:
             logger.error("Invalid state format")
-            return END
+            return "__end__"
 
         messages = state["messages"]
         if not messages:
             logger.error("No messages in state")
-            return END
+            return "__end__"
 
         last_message = messages[-1]
         if not hasattr(last_message, "tool_calls"):
             logger.warning("Last message has no tool_calls attribute")
-            return END
+            return "__end__"
 
-        return cast(
-            Literal["tools", "__end__"],
-            "tools" if last_message.tool_calls else "__end__",
-        )
+        return "tools" if last_message.tool_calls else "__end__"
 
     except Exception as e:
         logger.error(f"Error in continuation check: {str(e)}", exc_info=True)
-        return END
+        return "__end__"
 
 
 def validate_workflow_params(
@@ -183,7 +180,9 @@ def create_fmp_data_workflow(
         while retry_count < max_retries:
             try:
                 messages = state["messages"]
-                query = messages[-1].content
+                query_content = messages[-1].content
+                # Ensure query is a string for get_tools
+                query = query_content if isinstance(query_content, str) else str(query_content)
 
                 match_tools = vector_store.get_tools(query, k=max_toolset_size, provider="openai")
 
@@ -191,7 +190,9 @@ def create_fmp_data_workflow(
                     logger.warning("No matching tools found for query")
                     return {"messages": [model.invoke(messages)]}
 
-                model_with_tools = model.bind_tools(tools=match_tools)
+                # Cast tools to the expected type for bind_tools
+                tools_list = cast(Sequence[BaseTool], match_tools)
+                model_with_tools = model.bind_tools(tools=tools_list)
                 response = model_with_tools.invoke(messages)
 
                 return {"messages": [response]}
@@ -209,15 +210,20 @@ def create_fmp_data_workflow(
                 logger.error(f"Error in model processing: {str(e)}", exc_info=True)
                 raise
 
+        # This should not be reached, but satisfies mypy
+        raise RuntimeError("Max retries exceeded without resolution")
+
     try:
         # Initialize workflow components
         all_tools = vector_store.get_tools()
-        tool_node = BasicToolNode(all_tools)
-        workflow = StateGraph(MessagesState)
+        # Cast tools to List[BaseTool] for BasicToolNode
+        tools_list = cast(List[BaseTool], list(all_tools))
+        tool_node = BasicToolNode(tools_list)
+        workflow: StateGraph[MessagesState] = StateGraph(MessagesState)
 
         # Add nodes and edges
-        workflow.add_node("agent", call_model)
-        workflow.add_node("tools", tool_node)
+        workflow.add_node("agent", call_model)  # type: ignore[arg-type]
+        workflow.add_node("tools", tool_node)  # type: ignore[arg-type, type-var]
         workflow.add_edge(START, "agent")
         workflow.add_conditional_edges("agent", should_continue)
         workflow.add_edge("tools", "agent")

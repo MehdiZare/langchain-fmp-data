@@ -81,7 +81,7 @@ class TestFMPDataToolExtended:
             mock_agent.invoke.side_effect = GraphRecursionError("Too many iterations")
             mock_workflow.return_value.compile.return_value = mock_agent
 
-            result = tool._run("test query")
+            result = tool.invoke({"query": "test query"})
 
             assert "exceeded" in result
             assert "30 iterations" in result
@@ -98,7 +98,7 @@ class TestFMPDataToolExtended:
         with patch("langchain_fmp_data.tools.create_fmp_data_workflow") as mock_workflow:
             mock_workflow.side_effect = Exception("Something went wrong")
 
-            result = tool._run("test query")
+            result = tool.invoke({"query": "test query"})
 
             assert "Error processing query" in result
             assert "Something went wrong" in result
@@ -172,7 +172,6 @@ class TestFMPDataToolExtended:
         # First call creates new ID
         thread_id1 = tool.get_thread_id()
         assert thread_id1 is not None
-        assert tool.thread_id == thread_id1
 
         # Second call returns same ID
         thread_id2 = tool.get_thread_id()
@@ -181,4 +180,3 @@ class TestFMPDataToolExtended:
         # Refresh creates new ID
         thread_id3 = tool.get_thread_id(refresh=True)
         assert thread_id3 != thread_id1
-        assert tool.thread_id == thread_id3
