@@ -105,7 +105,7 @@ class FMPDataToolkit(BaseToolkit):
     query: Optional[str]
     num_results: int = 3
 
-    def __init__(self, query: str, **data) -> None:
+    def __init__(self, query: str, **data: Any) -> None:
         try:
             from fmp_data.lc import create_vector_store
         except ImportError:
