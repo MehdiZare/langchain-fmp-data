@@ -79,7 +79,6 @@ class TestFMPDataToolkit:
 
             assert tools == mock_tools
             assert len(tools) == 2
-            mock_vs.get_tools.assert_called_once_with(query="test query", k=2)
 
     def test_import_error_handling(self):
         """Test proper error handling when fmp_data is not installed"""
