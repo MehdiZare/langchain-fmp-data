@@ -41,8 +41,8 @@ class FMPDataToolkit(BaseToolkit):
         Integration with LangChain agent:
         ```python
         from langchain_openai import ChatOpenAI
-        from langchain.agents import create_openai_functions_agent
-        from langchain.agents import AgentExecutor
+        from langchain.agents import create_react_agent, AgentExecutor
+        from langchain import hub
 
         # Initialize the LLM
         llm = ChatOpenAI(temperature=0)
@@ -54,8 +54,11 @@ class FMPDataToolkit(BaseToolkit):
         )
         tools = toolkit.get_tools()
 
+        # Get prompt template for ReAct agent
+        prompt = hub.pull("hwchase17/react")
+
         # Create and run agent
-        agent = create_openai_functions_agent(llm, tools)
+        agent = create_react_agent(llm, tools, prompt)
         agent_executor = AgentExecutor(agent=agent, tools=tools)
 
         response = agent_executor.invoke({

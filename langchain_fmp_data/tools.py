@@ -7,9 +7,8 @@ import uuid
 from enum import Enum
 from typing import Optional, Type
 
-from fmp_data import create_vector_store
 from fmp_data.exceptions import AuthenticationError, ConfigError
-from fmp_data.lc import EndpointVectorStore
+from fmp_data.lc import EndpointVectorStore, create_vector_store
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
