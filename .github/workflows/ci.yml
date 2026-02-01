@@ -58,13 +58,13 @@ jobs:
           uv pip install --system -e ".[dev]"
 
           # Run linting
-          ruff check langchain_fmp_data/ tests/
+          ruff check src/langchain_fmp_data/ tests/
 
           # Run type checking
-          mypy langchain_fmp_data/
+          mypy src/langchain_fmp_data/
 
           # Run security checks
-          bandit -c pyproject.toml -r langchain_fmp_data/
+          bandit -c pyproject.toml -r src/langchain_fmp_data/
 
   # Coverage job - run all tests in one job for simplicity
   coverage:
@@ -87,7 +87,7 @@ jobs:
           uv pip install --system -e ".[test]"
 
           # Run tests with coverage and JUnit XML for test analytics
-          pytest --cov=langchain_fmp_data --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy -v
+          pytest --cov=src/langchain_fmp_data --cov-report=xml --cov-report=term --junitxml=junit.xml -o junit_family=legacy -v
 
       - name: 📈 Upload coverage to Codecov
         uses: codecov/codecov-action@v5
