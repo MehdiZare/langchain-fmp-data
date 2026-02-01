@@ -7,16 +7,15 @@ import uuid
 from enum import Enum
 from typing import Optional, Type
 
-from fmp_data import create_vector_store
 from fmp_data.exceptions import AuthenticationError, ConfigError
-from fmp_data.lc import EndpointVectorStore
+from fmp_data.lc import EndpointVectorStore, create_vector_store
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.errors import GraphRecursionError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from langchain_fmp_data.agent import create_fmp_data_workflow
 
@@ -114,7 +113,10 @@ class FMPDataTool(BaseTool):
             )
 
         self.max_iterations = max_iterations
-        self.llm = ChatOpenAI(temperature=temperature, openai_api_key=self.openai_api_key)
+        self.llm = ChatOpenAI(
+            temperature=temperature,
+            api_key=SecretStr(self.openai_api_key) if self.openai_api_key else None,
+        )
 
         # Initialize vector store
         try:
@@ -139,6 +141,11 @@ class FMPDataTool(BaseTool):
         """Execute the tool with better error handling and response formatting."""
         try:
             thread_id = self.get_thread_id(refresh_answer)
+
+            # Ensure vector_store and llm are initialized
+            if self.vector_store is None or self.llm is None:
+                raise RuntimeError("Tool not properly initialized")
+
             workflow = create_fmp_data_workflow(self.vector_store, self.llm)
             agent = workflow.compile(checkpointer=MemorySaver())
 
@@ -163,7 +170,7 @@ class FMPDataTool(BaseTool):
                 }
             }
 
-            final_state = agent.invoke({"messages": messages}, config=config)
+            final_state = agent.invoke({"messages": messages}, config=config)  # type: ignore[arg-type]
             response = final_state.get("messages", [])[-1].content
 
             return self.format_response(response, response_format)

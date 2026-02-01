@@ -5,98 +5,74 @@ This repository uses GitHub Actions for CI/CD with automatic versioning and PyPI
 ## Workflows
 
 ### 1. CI (`ci.yml`)
-- **Triggers**: On every push and PR to `main` and `dev` branches
+- **Triggers**: On pull requests
 - **Purpose**: Run tests, linting, and code quality checks
 - **Jobs**:
-  - Lint: Runs ruff and mypy
-  - Test: Runs pytest on multiple Python versions
-  - Check imports: Validates import statements
+  - Tests: Runs pytest on Python 3.10, 3.11, 3.12, 3.13, and 3.14
+  - Quality Gates: Runs ruff, mypy, and bandit (on Python 3.12)
+  - Coverage: Runs tests with coverage and uploads to Codecov
 
 ### 2. Release Pipeline (`release.yml`)
-- **Triggers**:
-  - PR merge to `main` → Bump version & publish to PyPI
-  - Push to `dev` → Publish to TestPyPI
-- **Purpose**: Automated versioning and package publishing
-- **Jobs**:
-  - Test: Run full test suite
-  - Bump Version: Automatically bump version based on PR labels
-  - Publish to PyPI/TestPyPI: Deploy packages
-
-### 3. PR Labeler (`pr-labeler.yml`)
-- **Triggers**: When PRs are opened or edited
-- **Purpose**: Automatically label PRs based on title/content
-- **Labels Applied**:
-  - `major`: Breaking changes (bumps x.0.0)
-  - `minor`: New features (bumps 0.x.0)
-  - `patch`: Bug fixes (bumps 0.0.x)
-  - Type labels: `bug`, `enhancement`, `documentation`, etc.
-
-### 4. Label Sync (`label-sync.yml`)
-- **Triggers**: Manual or when labels.yml changes
-- **Purpose**: Ensure all required labels exist in the repository
-
-## Versioning Strategy
-
-Version bumps are automatic based on PR labels:
-
-| PR Title Contains | Label Applied | Version Bump |
-|------------------|---------------|--------------|
-| `breaking`, `BREAKING CHANGE` | `major` | 1.0.0 → 2.0.0 |
-| `feat`, `feature`, `add` | `minor` | 1.0.0 → 1.1.0 |
-| `fix`, `bug`, `patch` | `patch` | 1.0.0 → 1.0.1 |
-| `docs`, `chore`, `refactor` | `patch` | 1.0.0 → 1.0.1 |
-
-## Publishing Strategy
-
-### Production (PyPI)
-- **When**: PR merged to `main` with version label
+- **Triggers**: PR merge to `main` with release labels
+- **Purpose**: Automated versioning and package publishing to PyPI
+- **Labels**:
+  - `release:major` - Bump major version (x.0.0)
+  - `release:minor` - Bump minor version (0.x.0)
+  - `release:patch` - Bump patch version (0.0.x)
 - **Process**:
-  1. Version automatically bumped based on label
-  2. Package built and published to PyPI
-  3. GitHub Release created
+  1. Calculate new version based on PR label
+  2. Update `pyproject.toml` with new version
+  3. Commit version bump and create tag
+  4. Build wheel and sdist
+  5. Create GitHub Release
+  6. Publish to PyPI
 
-### Testing (TestPyPI)
-- **When**: Push to `dev` branch
+### 3. Dev Release (`dev-release.yml`)
+- **Triggers**: Push to `dev` branch or manual trigger
+- **Purpose**: Publish development versions to TestPyPI
 - **Process**:
-  1. Version gets `.devYYYYMMDDHHMMSS` suffix
-  2. Package published to TestPyPI for testing
+  1. Calculate dev version based on PR labels (if open PR to main exists)
+  2. Build wheel and sdist
+  3. Publish to TestPyPI
 
-## Required Secrets
+### 4. Guard Main Origin (`guard-main-origin.yml`)
+- **Triggers**: PRs targeting `main`
+- **Purpose**: Ensure PRs to main only come from allowed branches
+- **Allowed branches**: `dev`, `hotfix-*`, `updates-*`, `fea/*`
 
-Configure these in repository settings:
+### 5. PR Labeler (`pr-labeler.yml`)
+- **Triggers**: PR opened, edited, or synchronized
+- **Purpose**: Automatically add labels based on PR title
+- **Labels added**:
+  - `release:major` for "breaking" changes
+  - `release:minor` for "feat" or "feature"
+  - `release:patch` for "fix", "bug", "docs", "chore", "refactor"
+  - Type labels: `bug`, `enhancement`, `documentation`, `testing`, `maintenance`
 
-- `PYPI_TOKEN`: PyPI API token for publishing
-- `TEST_PYPI_TOKEN`: TestPyPI API token for test publishing
-- `CODECOV_TOKEN`: (Optional) For coverage reporting
-- `FMP_TEST_API_KEY`: (Optional) For integration tests
-- `OPENAI_TEST_API_KEY`: (Optional) For integration tests
+### 6. Label Sync (`label-sync.yml`)
+- **Triggers**: Push to main (when `.github/labels.yml` changes) or manual
+- **Purpose**: Sync repository labels from `.github/labels.yml`
 
-## Usage Examples
+## Release Workflow
 
-### Regular Development
-1. Create feature branch from `dev`
-2. Make changes and push
-3. Open PR to `dev` for testing
-4. After testing, open PR from `dev` to `main`
+1. Create feature branch from `dev` (e.g., `fea/my-feature`)
+2. Make changes and create PR to `dev`
+3. PR gets auto-labeled based on title
+4. Merge to `dev` → dev version published to TestPyPI
+5. Create PR from `dev` to `main`
+6. Add appropriate `release:*` label if not auto-added
+7. Merge to `main` → version bumped and published to PyPI
 
-### Hotfix
-1. Create branch from `main`
-2. Make fix
-3. Open PR to `main` with title like "fix: resolve critical bug"
-4. PR gets labeled `patch` automatically
-5. On merge, version bumps and publishes automatically
+## Environments
 
-### New Feature
-1. Create branch from `dev`
-2. Develop feature
-3. Open PR with title like "feat: add new toolkit"
-4. PR gets labeled `minor` automatically
-5. On merge to `main`, version bumps and publishes
+This repository uses GitHub Environments for secure publishing:
 
-## Manual Override
+- **pypi**: For production releases to PyPI (uses OIDC trusted publishing)
+- **testpypi**: For development releases to TestPyPI (uses OIDC trusted publishing)
 
-To manually trigger workflows:
-- Go to Actions tab
-- Select workflow
-- Click "Run workflow"
-- Choose branch and options
+## Dependencies
+
+All workflows use:
+- `uv` for fast Python dependency management
+- `hatchling` for building packages
+- OIDC trusted publishing for PyPI (no API tokens needed)

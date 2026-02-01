@@ -1,0 +1,145 @@
+name: Dev Release
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  id-token: write              # OIDC → Trusted Publishing
+  contents: read               # Read repository contents
+  pull-requests: read          # Read PR labels for version calculation
+
+jobs:
+  dev-release:
+    runs-on: ubuntu-latest
+    environment: testpypi
+    env:
+      PYTHON_VERSION: "3.12"
+
+    steps:
+      - name: 🛎️  Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Needed for version calculation
+          fetch-tags: true
+
+      - name: 🐍  Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: ⚡  Install uv (with cache)
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: 📦  Install build tools
+        run: |
+          uv pip install --system build hatch
+
+      - name: 🔍  Check for PR with release labels
+        id: pr_labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Find open PR from dev to main
+          PR_JSON=$(gh pr list --head dev --base main --state open --json number,labels --limit 1)
+
+          if [ "$PR_JSON" = "[]" ]; then
+            echo "No open PR from dev to main found"
+            echo "RELEASE_TYPE=minor" >> $GITHUB_OUTPUT
+          else
+            PR_NUMBER=$(echo "$PR_JSON" | jq -r '.[0].number')
+            LABELS=$(echo "$PR_JSON" | jq -r '.[0].labels[].name' 2>/dev/null || echo "")
+
+            echo "Found PR #$PR_NUMBER with labels: $LABELS"
+
+            if echo "$LABELS" | grep -q "release:major"; then
+              echo "RELEASE_TYPE=major" >> $GITHUB_OUTPUT
+              echo "🏷️ Release type: MAJOR"
+            elif echo "$LABELS" | grep -q "release:minor"; then
+              echo "RELEASE_TYPE=minor" >> $GITHUB_OUTPUT
+              echo "🏷️ Release type: MINOR"
+            elif echo "$LABELS" | grep -q "release:patch"; then
+              echo "RELEASE_TYPE=patch" >> $GITHUB_OUTPUT
+              echo "🏷️ Release type: PATCH"
+            else
+              echo "RELEASE_TYPE=minor" >> $GITHUB_OUTPUT
+              echo "🏷️ Release type: minor (default)"
+            fi
+          fi
+
+      - name: 🏷️  Calculate dev version
+        id: version
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          CURRENT_VERSION=${LATEST_TAG#v}
+
+          # Parse version components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          # Create dev version with commit count since last tag
+          COMMIT_COUNT=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "1")
+
+          # Calculate version based on release type from PR labels
+          RELEASE_TYPE="${{ steps.pr_labels.outputs.RELEASE_TYPE }}"
+
+          if [ "$RELEASE_TYPE" = "major" ]; then
+            DEV_VERSION="$((MAJOR + 1)).0.0.dev${COMMIT_COUNT}"
+          elif [ "$RELEASE_TYPE" = "patch" ]; then
+            DEV_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1)).dev${COMMIT_COUNT}"
+          else
+            # Default to minor
+            DEV_VERSION="${MAJOR}.$((MINOR + 1)).0.dev${COMMIT_COUNT}"
+          fi
+
+          DEV_TAG="v${DEV_VERSION}"
+
+          echo "DEV_VERSION=$DEV_VERSION" >> $GITHUB_OUTPUT
+          echo "DEV_TAG=$DEV_TAG" >> $GITHUB_OUTPUT
+          echo "📦 Dev version: $DEV_VERSION (based on $RELEASE_TYPE release)"
+
+          # Update version in pyproject.toml for the build
+          sed -i "s/^version = \".*\"/version = \"$DEV_VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml to version $DEV_VERSION"
+          grep "^version" pyproject.toml
+
+      - name: 📦  Build wheel & sdist
+        run: |
+          echo "📦 Building package..."
+
+          python -m build --wheel --sdist
+
+          echo "📦 Build completed. Contents of dist/:"
+          ls -la dist/
+
+          # Verify the version in the built package
+          echo "📋 Checking built package version:"
+          if ls dist/*.tar.gz 1> /dev/null 2>&1; then
+            tar -tf dist/*.tar.gz | grep -E "(PKG-INFO|METADATA)" | head -1 | xargs tar -xOf dist/*.tar.gz | grep "^Version:" || echo "Version not found in metadata"
+          fi
+
+      - name: 🧪  Upload to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist
+          skip-existing: true
+          verbose: true
+
+      - name: 📝  Create summary
+        run: |
+          echo "## 🧪 Dev Release Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.DEV_VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "pip install -i https://test.pypi.org/simple/ langchain-fmp-data==${{ steps.version.outputs.DEV_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changes" >> $GITHUB_STEP_SUMMARY
+          echo "Published from commit: \`$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
