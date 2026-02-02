@@ -102,26 +102,37 @@ jobs:
           grep "^version" pyproject.toml
 
       - name: 🏷️ Commit version bump and create tag
+        id: create_tag
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
 
-          # Commit version bump
-          git add pyproject.toml
-          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NUMBER }}"
+          # Check if tag already exists
+          if git rev-parse "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.VERSION }} already exists, skipping release"
+            echo "tag_created=false" >> $GITHUB_OUTPUT
+          else
+            # Commit version bump
+            git add pyproject.toml
+            git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION_NUMBER }}"
 
-          # Create annotated tag
-          git tag -a "${{ steps.version.outputs.VERSION }}" -m "Release ${{ steps.version.outputs.VERSION }}"
+            # Create annotated tag
+            git tag -a "${{ steps.version.outputs.VERSION }}" -m "Release ${{ steps.version.outputs.VERSION }}"
 
-          # Push commit and tag
-          git push origin HEAD:main
-          git push origin "${{ steps.version.outputs.VERSION }}"
+            # Push commit and tag
+            git push origin HEAD:main
+            git push origin "${{ steps.version.outputs.VERSION }}"
+
+            echo "tag_created=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: 📦 Build distribution
+        if: steps.create_tag.outputs.tag_created == 'true'
         run: |
           python -m build --wheel --sdist
 
       - name: 📋 Generate release notes from PR
+        if: steps.create_tag.outputs.tag_created == 'true'
         id: release_notes
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -155,6 +166,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: 🚀 Create GitHub Release
+        if: steps.create_tag.outputs.tag_created == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
@@ -177,6 +189,7 @@ jobs:
           generate_release_notes: true
 
       - name: 🚀 Publish to PyPI
+        if: steps.create_tag.outputs.tag_created == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/

@@ -170,11 +170,11 @@ uv run mypy src/langchain_fmp_data/
 
 ### GitHub Actions Workflows
 
-- **CI**: Runs on all PRs and pushes to main/dev branches
+- **CI**: Runs on all PRs
   - Linting with Ruff
   - Type checking with Mypy
+  - Security scanning with Bandit
   - Tests on Python 3.10, 3.11, 3.12, 3.13, 3.14
-  - Cross-platform testing (Ubuntu, macOS, Windows)
   - Code coverage reporting to Codecov
 
 - **Release**: Automated version management and publishing
@@ -216,15 +216,15 @@ Follow conventional commits format:
 
 ```
 langchain-fmp-data/
-├── langchain_fmp_data/     # Main package code
-│   ├── __init__.py         # Package exports
-│   ├── agent.py            # LangGraph agent implementation
-│   ├── tools.py            # FMPDataTool implementation
-│   └── toolkits.py         # FMPDataToolkit implementation
+├── src/
+│   └── langchain_fmp_data/ # Main package code
+│       ├── __init__.py     # Package exports
+│       ├── agent.py        # LangGraph agent implementation
+│       ├── tools.py        # FMPDataTool implementation
+│       └── toolkits.py     # FMPDataToolkit implementation
 ├── tests/                  # Test suite
 │   ├── unit_tests/         # Unit tests
 │   └── integration_tests/  # Integration tests
-├── scripts/                # Utility scripts
 ├── .github/                # GitHub Actions workflows
 ├── pyproject.toml          # Project configuration
 ├── README.md               # This file
